@@ -15,7 +15,10 @@ func main() {
 	app := fiber.New()
 	api := app.Group("/api/v1")
 
-	api.Get("/user/:username", handler.GetUserByName)
+	user := handler.UserHandler{}
+
+	api.Get("/user/:id", user.GetUser)
+	api.Get("/create/:username", user.AddNewUser)
 
 	fmt.Printf("Starting server on port %v", *port)
 	app.Listen(*port)
