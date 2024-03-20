@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"log"
+	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/go-github/v60/github"
@@ -11,7 +12,13 @@ import (
 )
 
 type UserHandler struct {
-	UserStore db.UserStore
+	userStore db.UserStore
+}
+
+func NewUserHandler(userStore db.UserStore) *UserHandler {
+	return &UserHandler{
+		userStore: userStore,
+	}
 }
 
 func (h *UserHandler) AddNewUser(c *fiber.Ctx) error {
@@ -26,22 +33,25 @@ func (h *UserHandler) AddNewUser(c *fiber.Ctx) error {
 	newUser := types.User{
 		ID: user.ID, Login: user.Login, Name: user.Name,
 	}
-	h.UserStore.AddNewUser(&newUser)
+	h.userStore.AddNewUser(&newUser)
 	statusCode := fiber.StatusCreated
 	return c.Status(statusCode).JSON(fiber.Map{
 		"status":  statusCode,
-		"message": "User " + username + "successfully created",
+		"message": "User " + username + " successfully created",
 	})
 }
 
 func (h *UserHandler) GetUser(c *fiber.Ctx) error {
-	id := c.Params("id")
-	user, err := h.UserStore.GetUserById(id)
+	id, err := c.ParamsInt("id")
+	if err != nil {
+		log.Fatal(err)
+	}
+	user, err := h.userStore.GetUserById(int64(id))
 	if err != nil {
 		statusCode := fiber.StatusNotFound
 		return c.Status(statusCode).JSON(fiber.Map{
 			"status":  statusCode,
-			"message": "User " + id + " not found!",
+			"message": "User " + strconv.Itoa(id) + " not found!",
 		})
 	}
 

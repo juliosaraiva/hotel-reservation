@@ -10,52 +10,43 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-const (
-	dburi    = "mongodb://localhost:27017"
-	dbname   = "hotel-reservation"
-	userColl = "users"
-)
-
 type UserStore interface {
-	GetUserById(string) (*types.User, error)
-	AddNewUser(*types.User) error
+	GetUserById(id int64) (*types.User, error)
+	AddNewUser(user *types.User) error
 }
 
 type MongoUserStore struct {
-	client *mongo.Client
+	Client     *mongo.Client
+	DBUri      string
+	DBName     string
+	Collection string
 }
 
 func (s *MongoUserStore) GetUserById(id int64) (*types.User, error) {
 	ctx := context.Background()
 
-	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(dburi))
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(s.DBUri))
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	coll := client.Database(dbname).Collection(userColl)
+	coll := client.Database(s.DBName).Collection(s.Collection)
 	var user types.User
-	if err = coll.FindOne(ctx, bson.M{"id": id}).Decode(&user); err != nil {
-		log.Fatal(err)
+	if err = coll.FindOne(ctx, bson.M{"_id": id}).Decode(&user); err != nil {
+		return nil, err
 	}
 
 	return &user, nil
 }
 
-func NewMongoUserStore(client *mongo.Client) *MongoUserStore {
-	return &MongoUserStore{
-		client: client,
-	}
-}
-
-func (s *MongoUserStore) AddNewUser(username *types.User) error {
+func (s *MongoUserStore) AddNewUser(user *types.User) error {
 	ctx := context.Background()
-	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(dburi))
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(s.DBUri))
 	if err != nil {
 		log.Fatal(err)
 	}
-	coll := client.Database(dbname).Collection(userColl)
-	_, err = coll.InsertOne(ctx, &username)
+	coll := client.Database(s.DBName).Collection(s.Collection)
+	_, err = coll.InsertOne(ctx, &user)
 	if err != nil {
 		return err
 	}
