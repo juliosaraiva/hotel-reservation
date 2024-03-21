@@ -33,7 +33,7 @@ func (h *UserHandler) AddNewUser(c *fiber.Ctx) error {
 	newUser := types.User{
 		ID: user.ID, Login: user.Login, Name: user.Name,
 	}
-	h.userStore.AddNewUser(&newUser)
+	h.userStore.AddNewUser(ctx, &newUser)
 	statusCode := fiber.StatusCreated
 	return c.Status(statusCode).JSON(fiber.Map{
 		"status":  statusCode,
@@ -42,11 +42,12 @@ func (h *UserHandler) AddNewUser(c *fiber.Ctx) error {
 }
 
 func (h *UserHandler) GetUser(c *fiber.Ctx) error {
+	ctx := context.Background()
 	id, err := c.ParamsInt("id")
 	if err != nil {
 		log.Fatal(err)
 	}
-	user, err := h.userStore.GetUserById(int64(id))
+	user, err := h.userStore.GetUserById(ctx, int64(id))
 	if err != nil {
 		statusCode := fiber.StatusNotFound
 		return c.Status(statusCode).JSON(fiber.Map{

@@ -30,9 +30,7 @@ func main() {
 
 	userHandler := handler.NewUserHandler(&db.MongoUserStore{
 		Client:     client,
-		DBUri:      dburi,
-		DBName:     dbname,
-		Collection: userColl,
+		Collection: client.Database(dbname).Collection(userColl),
 	})
 
 	app := fiber.New()
