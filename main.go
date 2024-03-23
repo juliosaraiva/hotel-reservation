@@ -19,6 +19,13 @@ const (
 	userColl = "users"
 )
 
+var config = fiber.Config{
+	ErrorHandler: func(c *fiber.Ctx, err error) error {
+		code := fiber.StatusInternalServerError
+		return c.Status(code).JSON(fiber.Map{"status_code": code, "error": err.Error()})
+	},
+}
+
 func main() {
 	port := flag.String("port", ":8000", "Port to listen")
 	flag.Parse()
@@ -33,12 +40,15 @@ func main() {
 		Collection: client.Database(dbname).Collection(userColl),
 	})
 
-	app := fiber.New()
+	app := fiber.New(config)
 	api := app.Group("/api/v1")
 
-	api.Get("/user/:id", userHandler.GetUser)
-	api.Get("/create/:username", userHandler.AddNewUser)
+	api.Get("/user", userHandler.GetAllUsers)
+	api.Get("/user/:id", userHandler.GetUserById)
+	api.Post("/user", userHandler.CreateUser)
+	api.Put("user/:id", userHandler.UpdateUser)
+	api.Delete("/user/:id", userHandler.DeleteUser)
 
 	fmt.Printf("Starting server on port %v", *port)
-	app.Listen(*port)
+	log.Fatal(app.Listen(*port))
 }
