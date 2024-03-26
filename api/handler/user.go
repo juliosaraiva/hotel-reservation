@@ -38,20 +38,20 @@ func (h *UserHandler) GetAllUsers(c *fiber.Ctx) error {
 func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
 	var params types.UserParams
 	if err := c.BodyParser(&params); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Line 41"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Unable to parse params"})
 	}
 
 	if err := params.Validate(); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Validate"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Unable to validate params"})
 	}
 	user, err := types.NewUserFromParams(params)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Line 48"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Unable to parse new user"})
 	}
 
 	newUser, err := h.userStore.AddUser(c.Context(), user)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Line 53"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Unable to create new user"})
 	}
 
 	return c.JSON(newUser)

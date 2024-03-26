@@ -36,18 +36,36 @@ func main() {
 	}
 
 	userHandler := handler.NewUserHandler(&db.MongoUserStore{
-		Client:     client,
-		Collection: client.Database(dbname).Collection(userColl),
+		Collection: client.Database(dbname).Collection("user"),
 	})
+
+	hotelStore := db.MongoHotelStore{
+		Collection: client.Database(dbname).Collection("hotel"),
+	}
+	roomStore := db.MongoRoomStore{
+		Collection: client.Database(dbname).Collection("room"),
+		Hotel:      &hotelStore,
+	}
+
+	hotelHandler := handler.NewHotelHandler(
+		&hotelStore,
+		&roomStore,
+	)
 
 	app := fiber.New(config)
 	api := app.Group("/api/v1")
+	user := api.Group("/user")
+	hotel := api.Group("/hotel")
 
-	api.Get("/user", userHandler.GetAllUsers)
-	api.Get("/user/:id", userHandler.GetUserById)
-	api.Post("/user", userHandler.CreateUser)
-	api.Put("user/:id", userHandler.UpdateUser)
-	api.Delete("/user/:id", userHandler.DeleteUser)
+	// User Endpoints
+	user.Get("/", userHandler.GetAllUsers)
+	user.Get("/:id", userHandler.GetUserById)
+	user.Post("/", userHandler.CreateUser)
+	user.Put("/:id", userHandler.UpdateUser)
+	user.Delete("/:id", userHandler.DeleteUser)
+
+	// Hotel Endpoints
+	hotel.Get("/", hotelHandler.GetAll)
 
 	fmt.Printf("Starting server on port %v", *port)
 	log.Fatal(app.Listen(*port))
