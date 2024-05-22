@@ -1,22 +1,18 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"log"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/juliosaraiva/hotel-reservation/api/db"
-	"github.com/juliosaraiva/hotel-reservation/api/handler"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"github.com/juliosaraiva/hotel-reservation/router"
 )
 
 const (
-	dburi    = "mongodb://localhost:27017"
-	dbname   = "hotel-reservation"
-	userColl = "users"
+	dburi  = "mongodb://localhost:27017"
+	dbname = "hotel-reservation"
 )
 
 var config = fiber.Config{
@@ -30,42 +26,27 @@ func main() {
 	port := flag.String("port", ":8000", "Port to listen")
 	flag.Parse()
 
-	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(dburi))
+	dbconn, cancel, err := db.MongoDBConnection(dburi, dbname)
 	if err != nil {
-		log.Fatal(client)
+		log.Fatal("Database Connection Error $s", err)
 	}
+	fmt.Println("Database connection sucess!")
 
-	userHandler := handler.NewUserHandler(&db.MongoUserStore{
-		Collection: client.Database(dbname).Collection("user"),
-	})
+	userCollection := dbconn.Collection("users")
+	hotelCollection := dbconn.Collection("hotels")
+	roomCollection := dbconn.Collection("rooms")
 
-	hotelStore := db.MongoHotelStore{
-		Collection: client.Database(dbname).Collection("hotel"),
-	}
-	roomStore := db.MongoRoomStore{
-		Collection: client.Database(dbname).Collection("room"),
-		Hotel:      &hotelStore,
-	}
-
-	hotelHandler := handler.NewHotelHandler(
-		&hotelStore,
-		&roomStore,
-	)
+	user := db.NewUser(userCollection)
+	hotel := db.NewHotel(hotelCollection)
+	room := db.NewRoom(roomCollection, hotel)
 
 	app := fiber.New(config)
 	api := app.Group("/api/v1")
-	user := api.Group("/user")
-	hotel := api.Group("/hotel")
 
-	// User Endpoints
-	user.Get("/", userHandler.GetAllUsers)
-	user.Get("/:id", userHandler.GetUserById)
-	user.Post("/", userHandler.CreateUser)
-	user.Put("/:id", userHandler.UpdateUser)
-	user.Delete("/:id", userHandler.DeleteUser)
+	router.UserRouter(api, user)
+	router.HotelRouter(api, hotel, room)
 
-	// Hotel Endpoints
-	hotel.Get("/", hotelHandler.GetAll)
+	defer cancel()
 
 	fmt.Printf("Starting server on port %v", *port)
 	log.Fatal(app.Listen(*port))

@@ -10,9 +10,8 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/juliosaraiva/hotel-reservation/api/db"
+	"github.com/juliosaraiva/hotel-reservation/internal/domain/interfaces"
 	"github.com/juliosaraiva/hotel-reservation/types"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 const (
@@ -22,25 +21,27 @@ const (
 )
 
 type testdb struct {
-	db.UserStore
+	user interfaces.User
 }
 
 func (tdb *testdb) TearDown(t *testing.T) {
-	if err := tdb.UserStore.Drop(context.TODO()); err != nil {
+	if err := tdb.user.Drop(context.TODO()); err != nil {
 		t.Fatal(t)
 	}
 }
 
 func setup(t *testing.T) *testdb {
-	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(dburi))
+	dbconn, cancel, err := db.MongoDBConnection(dburi, dbname)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	userCollection := dbconn.Collection(userColl)
+
+	defer cancel()
+
 	return &testdb{
-		UserStore: &db.MongoUserStore{
-			Collection: client.Database(dbname).Collection(userColl),
-		},
+		user: db.NewUser(userCollection),
 	}
 }
 
@@ -49,8 +50,7 @@ func TestPostUser(t *testing.T) {
 	defer tdb.TearDown(t)
 
 	app := fiber.New()
-	userHandler := NewUserHandler(tdb.UserStore)
-	app.Post("/api/v1/user", userHandler.CreateUser)
+	app.Post("/api/v1/user", AddUser(tdb.user))
 
 	params := types.UserParams{
 		Email:     "bitcoin@btc.org",

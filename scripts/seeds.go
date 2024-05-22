@@ -6,10 +6,9 @@ import (
 	"log"
 
 	"github.com/juliosaraiva/hotel-reservation/api/db"
-	"github.com/juliosaraiva/hotel-reservation/types"
+	"github.com/juliosaraiva/hotel-reservation/internal/domain/interfaces"
+	"github.com/juliosaraiva/hotel-reservation/internal/domain/models"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 const (
@@ -18,42 +17,41 @@ const (
 )
 
 var (
-	ctx        = context.Background()
-	client, _  = mongo.Connect(context.TODO(), options.Client().ApplyURI(DBUri))
-	roomStore  db.RoomStorer
-	hotelStore db.HotelStorer
+	ctx   = context.Background()
+	room  interfaces.Room
+	hotel interfaces.Hotel
 )
 
 func seedHotel(name string, location string) {
-	hotel := types.Hotel{
+	h := models.Hotel{
 		Name:     name,
 		Location: location,
 		Rooms:    []primitive.ObjectID{},
 	}
 
-	rooms := []types.Room{
+	rooms := []models.Room{
 		{
-			Type:  types.SingleRoomType,
+			Type:  models.SingleRoomType,
 			Price: 100.0,
 		},
 		{
-			Type:  types.DeluxeRoomType,
+			Type:  models.DeluxeRoomType,
 			Price: 550.5,
 		},
 		{
-			Type:  types.DoubleRoomType,
+			Type:  models.DoubleRoomType,
 			Price: 250,
 		},
 	}
 
-	insertedHotel, err := hotelStore.Insert(ctx, &hotel)
+	insertedHotel, err := hotel.Insert(ctx, &h)
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	for _, room := range rooms {
-		room.HotelID = insertedHotel.ID
-		_, err := roomStore.Insert(ctx, &room)
+	for _, r := range rooms {
+		r.HotelID = insertedHotel.ID
+		_, err := room.Insert(ctx, &r)
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -62,18 +60,19 @@ func seedHotel(name string, location string) {
 
 func init() {
 	var err error
-	if err = client.Database(DBName).Drop(ctx); err != nil {
+	dbconn, cancel, err := db.MongoDBConnection(DBUri, DBName)
+	if err != nil {
 		log.Fatal(err)
 	}
-	hotelStore = &db.MongoHotelStore{
-		Collection: client.Database(DBName).Collection("hotel"),
-	}
+	hotelCollection := dbconn.Collection("hotels")
+	roomCollection := dbconn.Collection("rooms")
 
-	roomStore = &db.MongoRoomStore{
-		Collection: client.Database(DBName).Collection("room"),
-		Hotel:      hotelStore,
-	}
+	hotel = db.NewHotel(hotelCollection)
+	room = db.NewRoom(roomCollection, hotel)
+
+	defer cancel()
 }
+
 func main() {
 	seedHotel("Ibis", "Sao Paulo")
 	seedHotel("The cozy hotel", "Las Vegas")

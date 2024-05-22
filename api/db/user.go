@@ -2,52 +2,38 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
-	"github.com/juliosaraiva/hotel-reservation/types"
+	"github.com/juliosaraiva/hotel-reservation/internal/domain/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-type Dropper interface {
-	Drop(ctx context.Context) error
-}
-
-type UserStore interface {
-	GetUserById(ctx context.Context, id string) (*types.User, error)
-	GetUser(ctx context.Context) ([]*types.User, error)
-	AddUser(ctx context.Context, user *types.User) (*types.User, error)
-	UpdateUser(ctx context.Context, id string, params *types.UserUpdate) error
-	DeleteUser(ctx context.Context, id string) (*mongo.DeleteResult, error)
-	Dropper
-}
-
-type MongoUserStore struct {
+type user struct {
 	Collection *mongo.Collection
 }
 
-func (s *MongoUserStore) Drop(ctx context.Context) error {
-	fmt.Println("--- Dropping user collection")
-	return s.Collection.Drop(ctx)
+func NewUser(collection *mongo.Collection) *user {
+	return &user{
+		Collection: collection,
+	}
 }
 
-func (s *MongoUserStore) GetUserById(ctx context.Context, id string) (*types.User, error) {
-	oid, err := primitive.ObjectIDFromHex(id)
+func (u *user) AddUser(ctx context.Context, user *models.User) (*models.User, error) {
+	insertedUser, err := u.Collection.InsertOne(ctx, user)
 	if err != nil {
 		return nil, err
 	}
-	var user types.User
-	if err := s.Collection.FindOne(ctx, bson.M{"_id": oid}).Decode(&user); err != nil {
-		return nil, err
-	}
 
-	return &user, nil
+	user.ID = insertedUser.InsertedID.(primitive.ObjectID)
+	return user, nil
 }
 
-func (s *MongoUserStore) GetUser(ctx context.Context) ([]*types.User, error) {
-	var users []*types.User
-	cur, err := s.Collection.Find(ctx, bson.M{})
+func (u *user) GetUsers(ctx context.Context) ([]*models.User, error) {
+	var users []*models.User
+	cur, err := u.Collection.Find(ctx, bson.M{})
 	if err != nil {
 		return nil, err
 	}
@@ -55,23 +41,23 @@ func (s *MongoUserStore) GetUser(ctx context.Context) ([]*types.User, error) {
 	if err = cur.All(ctx, &users); err != nil {
 		return nil, err
 	}
-
 	return users, nil
-
 }
 
-func (s *MongoUserStore) AddUser(ctx context.Context, user *types.User) (*types.User, error) {
-	insertedUser, err := s.Collection.InsertOne(ctx, user)
+func (u *user) GetUserById(ctx context.Context, id string) (*models.User, error) {
+	oid, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return nil, err
 	}
 
-	user.ID = insertedUser.InsertedID.(primitive.ObjectID)
-
+	var user *models.User
+	if err := u.Collection.FindOne(ctx, bson.M{"_id": oid}).Decode(&user); err != nil {
+		return nil, err
+	}
 	return user, nil
 }
 
-func (s *MongoUserStore) UpdateUser(ctx context.Context, id string, params *types.UserUpdate) error {
+func (u *user) UpdateUser(ctx context.Context, id string, params *models.UserUpdate) error {
 	oid, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return err
@@ -80,22 +66,38 @@ func (s *MongoUserStore) UpdateUser(ctx context.Context, id string, params *type
 	if err != nil {
 		return err
 	}
-	_, err = s.Collection.UpdateOne(ctx, bson.M{"_id": oid}, mapUser)
+
+	_, err = u.Collection.UpdateOne(ctx, bson.M{"_id": oid}, mapUser)
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 
-func (s *MongoUserStore) DeleteUser(ctx context.Context, id string) (*mongo.DeleteResult, error) {
+func (u *user) DeleteUser(ctx context.Context, id string) (*models.DeleteResult, error) {
 	oid, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return nil, err
 	}
-	res, err := s.Collection.DeleteOne(ctx, bson.M{"_id": oid})
+
+	res, err := u.Collection.DeleteOne(ctx, bson.M{"_id": oid})
 	if err != nil {
 		return nil, err
 	}
-	return res, nil
+	var deleteResult *models.DeleteResult
+	resMarshal, err := json.Marshal(res)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = json.Unmarshal(resMarshal, deleteResult); err != nil {
+		return nil, err
+	}
+
+	return deleteResult, nil
+}
+
+func (u *user) Drop(ctx context.Context) error {
+	fmt.Println("--- Dropping user collection")
+	return u.Collection.Drop(ctx)
 }
